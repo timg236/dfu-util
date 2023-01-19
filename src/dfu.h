@@ -65,6 +65,7 @@
 #define DFU_CLRSTATUS   4
 #define DFU_GETSTATE    5
 #define DFU_ABORT       6
+#define DFU_BULK_DNLOAD 0x11
 
 /* DFU interface */
 #define DFU_IFF_DFU             0x0001  /* DFU Mode, (not Runtime) */
@@ -113,6 +114,11 @@ int dfu_download( libusb_device_handle *device,
                   const unsigned short interface,
                   const unsigned short length,
                   const unsigned short transaction,
+                  unsigned char* data );
+int dfu_bulk_download( libusb_device_handle *device,
+                  const unsigned short interface,
+                  const unsigned short block_size,
+                  const unsigned short block_count,
                   unsigned char* data );
 int dfu_upload( libusb_device_handle *device,
                 const unsigned short interface,

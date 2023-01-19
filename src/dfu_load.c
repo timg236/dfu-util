@@ -117,22 +117,40 @@ int dfuload_do_dnload(struct dfu_if *dif, int xfer_size, struct dfu_file *file)
 	while (bytes_sent < expected_size) {
 		off_t bytes_left;
 		int chunk_size;
+		const int bulk_block_size = 4096;
 
 		bytes_left = expected_size - bytes_sent;
-		if (bytes_left < xfer_size)
-			chunk_size = (int) bytes_left;
-		else
-			chunk_size = xfer_size;
 
-		ret = dfu_download(dif->dev_handle, dif->interface,
-				   chunk_size, transaction++, chunk_size ? buf : NULL);
-		if (ret < 0) {
-			warnx("Error during download (%s)",
-			      libusb_error_name(ret));
-			goto out;
+		if (bytes_left > bulk_block_size) {
+			const int max_bulk_dnload_size = (5 * 1024 * 1024); // TODO: Read from USB descriptor
+			int bulk_dnload_size = bytes_left;
+			if (bulk_dnload_size > max_bulk_dnload_size)
+				bulk_dnload_size = max_bulk_dnload_size;
+
+			ret = dfu_bulk_download(dif->dev_handle, dif->interface, bulk_block_size, bulk_dnload_size / bulk_block_size, buf);
+			if (ret < 0) {
+				warnx("Error during download (%s)",
+						libusb_error_name(ret));
+				goto out;
+			}
+			bytes_sent += bulk_dnload_size;
+			buf += bulk_dnload_size;
+		} else {
+			if (bytes_left < xfer_size)
+				chunk_size = (int) bytes_left;
+			else
+				chunk_size = xfer_size;
+
+			ret = dfu_download(dif->dev_handle, dif->interface,
+					   chunk_size, transaction++, chunk_size ? buf : NULL);
+			if (ret < 0) {
+				warnx("Error during download (%s)",
+					  libusb_error_name(ret));
+				goto out;
+			}
+			bytes_sent += chunk_size;
+			buf += chunk_size;
 		}
-		bytes_sent += chunk_size;
-		buf += chunk_size;
 
 		do {
 			ret = dfu_get_status(dif, &dst);

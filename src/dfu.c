@@ -90,6 +90,57 @@ int dfu_download( libusb_device_handle *device,
     return status;
 }
 
+/*
+ *  DFU_BULK_DNLOAD Request
+ *
+ *  Sends block_count number of whole 4K blocks.
+ *
+ *  device      - the usb_dev_handle to communicate with
+ *  block_count - the size in 4K blocks
+ *  data        - the data to transfer
+ *
+ *  returns the number of bytes written or < 0 on error
+ */
+int dfu_bulk_download( libusb_device_handle *device,
+                  const unsigned short interface,
+                  const unsigned short block_size,
+                  const unsigned short block_count,
+                  unsigned char* data )
+{
+    int status;
+    int remaining_bytes = block_size * block_count;
+    uint16_t wValue = block_count;
+
+    status = libusb_control_transfer( device,
+          /* bmRequestType */ LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_CLASS | LIBUSB_RECIPIENT_INTERFACE,
+          /* bRequest      */ DFU_BULK_DNLOAD,
+          /* wValue        */ wValue,
+          /* wIndex        */ interface,
+          /* Data          */ NULL,
+          /* wLength       */ 0,
+                              dfu_timeout );
+    if (status != 0)
+        return status;
+
+    while (remaining_bytes)
+    {
+        const int ep = 0x2;
+        int actual_length = 0;
+        const int max_transfer_size = 16384 * 2;
+        int send = max_transfer_size;
+
+        if (send > remaining_bytes)
+            send = remaining_bytes;
+
+        status = libusb_bulk_transfer(device, ep, data, send, &actual_length, dfu_timeout);
+        if (status != 0)
+            return status;
+        remaining_bytes -= actual_length;
+        data += actual_length;
+    }
+    return status;
+}
+
 
 /*
  *  DFU_UPLOAD Request (DFU Spec 1.0, Section 6.2)
